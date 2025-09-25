@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 #Requires -RunAsAdministrator
 # ---
-# LZ5 v2.3: Definitive Engineering Edition GGUF Converter
+# LZ5 v2.4: Definitive Self-Tuning GGUF Converter (CUDA Edition)
 # ---
 # The definitive, fully-implemented, production-grade version of the LZ5 standard.
 # This script orchestrates a cross-platform CMake build and provides a robust UI.
@@ -18,46 +18,30 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 #region GUI_SETUP
-# --- GUI Setup ---
 $form = New-Object System.Windows.Forms.Form
-$form.Text        = 'LZ5 v2.3: Definitive Engineering Edition (CUDA)'
+$form.Text        = 'LZ5 v2.4: Definitive Self-Tuning Edition (CUDA)'
 $form.Size        = New-Object System.Drawing.Size(950,750)
 $form.StartPosition = 'CenterScreen'
 $form.MinimumSize = $form.Size
-
 $txtLog           = New-Object System.Windows.Forms.TextBox
-$txtLog.Dock      = 'Fill'
-$txtLog.Multiline = $true
-$txtLog.ScrollBars= 'Vertical'
-$txtLog.Font      = New-Object System.Drawing.Font('Consolas',9)
-$txtLog.ReadOnly  = $true
+$txtLog.Dock      = 'Fill'; $txtLog.Multiline = $true; $txtLog.ScrollBars= 'Vertical'
+$txtLog.Font      = New-Object System.Drawing.Font('Consolas',9); $txtLog.ReadOnly  = $true
 $form.Controls.Add($txtLog)
-
 function Log {
     param([string]$line)
     $stamp = (Get-Date -Format 'HH:mm:ss.fff')
-    $txtLog.AppendText("[$stamp]  $line`r`n")
-    $txtLog.SelectionStart = $txtLog.Text.Length
-    $txtLog.ScrollToCaret()
+    $txtLog.AppendText("[$stamp]  $line`r`n"); $txtLog.SelectionStart = $txtLog.Text.Length; $txtLog.ScrollToCaret()
 }
 #endregion
 
 #region ENVIRONMENT_AND_DEPENDENCIES
-# --- Environment and Dependency Management ---
-$scriptDir   = $PSScriptRoot
-$toolsDir    = Join-Path $scriptDir '_tools'
-$outDir      = Join-Path $scriptDir '_out'
-$srcDir      = Join-Path $toolsDir 'src'
-$buildDir    = Join-Path $toolsDir 'build'
-$binDir      = Join-Path $toolsDir 'bin'
-
-@($toolsDir,$outDir,$srcDir,$buildDir,$binDir) |
-    Where-Object { -not (Test-Path $_) } |
-    ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
+$scriptDir   = $PSScriptRoot; $toolsDir    = Join-Path $scriptDir '_tools'; $outDir      = Join-Path $scriptDir '_out'
+$srcDir      = Join-Path $toolsDir 'src'; $buildDir    = Join-Path $toolsDir 'build'; $binDir      = Join-Path $toolsDir 'bin'
+@($toolsDir,$outDir,$srcDir,$buildDir,$binDir) | Where-Object { -not (Test-Path $_) } | ForEach-Object { New-Item -ItemType Directory -Path $_ -Force | Out-Null }
 
 function Find-Msvc {
     $vw = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path $vw)) { throw "Visual Studio Installer not found at $vw. Please run install-dependencies.ps1" }
+    if (-not (Test-Path $vw)) { throw "Visual Studio Installer not found. Please run install-dependencies.ps1" }
     $path = & $vw -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
     if ($path) {
         $vcvarsBat = Join-Path $path 'VC\Auxiliary\Build\vcvars64.bat'
@@ -96,10 +80,9 @@ $converterDir = Join-Path $toolsDir 'lz5_converter_src'
 if (-not (Test-Path $converterDir)) { New-Item -ItemType Directory -Path $converterDir | Out-Null }
 $cmakeFile = Join-Path $converterDir 'CMakeLists.txt'
 $converterSrcFile = Join-Path $converterDir 'main.cu'
-$converterExe = Join-Path $binDir 'lz5_v2.3_converter.exe'
+$converterExe = Join-Path $binDir 'lz5_v2.4_converter.exe'
 
 #region CMAKE_SCRIPT
-# --- The Cross-Platform CMake Build Script ---
 $cmakeCode = @"
 cmake_minimum_required(VERSION 3.18)
 project(lz5_converter LANGUAGES CXX CUDA)
@@ -108,24 +91,20 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Find dependencies
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(Threads REQUIRED)
 
-# --- Zstd ---
 set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
 set(ZSTD_BUILD_STATIC ON CACHE BOOL "" FORCE)
 set(ZSTD_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/zstd/build/cmake zstd_build)
 set(ZSTD_LIB zstd_static)
 
-# --- GGML ---
 set(LLAMA_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/llama.cpp)
-set(GGML_BUILD OFF CACHE BOOL "" FORCE) # Prevent llama.cpp's top-level from building everything
+set(GGML_BUILD OFF CACHE BOOL "" FORCE)
 add_subdirectory(${LLAMA_CPP_DIR} llama_build)
 set(GGML_LIB ggml)
 
-# --- CUDA Configuration ---
 option(LZ5_USE_CUDA "Enable CUDA support" ON)
 if(LZ5_USE_CUDA)
     find_package(CUDA 11.0)
@@ -135,29 +114,29 @@ if(LZ5_USE_CUDA)
         set(CMAKE_CUDA_STANDARD 17)
         set(CMAKE_CUDA_ARCHITECTURES 70 75 80 86 90)
         set(CUDA_LIBS ${CUDA_CUDART_LIBRARY})
+        set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     else()
         message(WARNING "CUDA Toolkit not found. Building in CPU-only mode.")
         set(LZ5_USE_CUDA OFF)
     endif()
 endif()
 
-# --- Executable ---
-add_executable(lz5_v2.3_converter main.cu)
+add_executable(lz5_v2.4_converter main.cu)
 
 if (MSVC)
-    target_compile_options(lz5_v2.3_converter PRIVATE /O2 /EHsc /bigobj /W3)
-    target_compile_definitions(lz5_v2.3_converter PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_options(lz5_v2.4_converter PRIVATE /O2 /EHsc /bigobj /W3)
+    target_compile_definitions(lz5_v2.4_converter PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
-    target_compile_options(lz5_v2.3_converter PRIVATE -O3 -Wall -Wextra -pthread)
+    target_compile_options(lz5_v2.4_converter PRIVATE -O3 -Wall -Wextra -pthread)
 endif()
 
-target_include_directories(lz5_v2.3_converter PRIVATE
+target_include_directories(lz5_v2.4_converter PRIVATE
     Eigen3::Eigen
-    ${LLAMA_CPP_DIR} # For ggml.h and gguf.h
+    ${LLAMA_CPP_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/src/zstd/lib
 )
 
-target_link_libraries(lz5_v2.3_converter PRIVATE
+target_link_libraries(lz5_v2.4_converter PRIVATE
     ${GGML_LIB}
     ${ZSTD_LIB}
     Eigen3::Eigen
@@ -165,14 +144,13 @@ target_link_libraries(lz5_v2.3_converter PRIVATE
     ${CUDA_LIBS}
 )
 
-install(TARGETS lz5_v2.3_converter DESTINATION bin)
+install(TARGETS lz5_v2.4_converter DESTINATION bin)
 "@
 #endregion
 
 #region CXX_CUDA_SOURCE
-# --- The "LZ5 v2.3" C++ / CUDA Source Code ---
 $cppCode = @'
-// lz5_v2_3_converter.cu - Definitive Engineering Edition
+// lz5_v2_4_converter.cu - Definitive Self-Tuning Edition
 // This file contains both C++ and CUDA C code and is built via CMake.
 
 #define _USE_MATH_DEFINES
@@ -192,6 +170,7 @@ $cppCode = @'
 #include <tuple>
 #include <algorithm>
 #include <stdexcept>
+#include <numeric>
 
 #include <zstd.h>
 #include <Eigen/Dense>
@@ -231,6 +210,7 @@ struct Config {
     float learning_rate = 1e-4f;
     int training_layers = 4;
     size_t tile_size_mb = 128;
+    int hidden_dim = 8;
     bool use_cuda = false;
 };
 
@@ -268,8 +248,8 @@ public:
 
 class Predictor {
 public:
-    ConvLayer conv1, conv2; bool trained = false;
-    Predictor(float lr) : conv1(2, 8, lr), conv2(8, 1, lr) {}
+    ConvLayer conv1, conv2; bool trained = false; int hidden_dim;
+    Predictor(float lr, int h_dim) : hidden_dim(h_dim), conv1(2, h_dim, lr), conv2(h_dim, 1, lr) {}
     Matrix forward(const Matrix& x_cat) const {
         Matrix h = conv1.forward(x_cat);
         for (int i = 0; i < h.size(); ++i) h(i) = std::max(0.0f, h(i));
@@ -316,7 +296,6 @@ struct CompressionTask {
     std::mutex* mtx;
     bool* ready;
 };
-
 std::queue<CompressionTask*> work_queue;
 std::mutex queue_mutex;
 std::condition_variable queue_cv;
@@ -332,10 +311,10 @@ void compression_worker() {
             task = work_queue.front(); work_queue.pop();
         }
         try {
-            size_t bound = ZSTD_compressBound(task->residual_bytes_ptr->size());
-            if (bound == 0) { // Handle empty input case
+            if (task->residual_bytes_ptr->empty()) {
                 task->compressed_output_ptr->clear();
             } else {
+                size_t bound = ZSTD_compressBound(task->residual_bytes_ptr->size());
                 task->compressed_output_ptr->resize(bound);
                 size_t c_size = ZSTD_compress(task->compressed_output_ptr->data(), bound, task->residual_bytes_ptr->data(), task->residual_bytes_ptr->size(), task->zstd_level);
                 if (ZSTD_isError(c_size)) {
@@ -345,7 +324,8 @@ void compression_worker() {
                 }
             }
         } catch (...) {
-            task->error_flag->store(true); task->compressed_output_ptr->clear();
+            task->error_flag->store(true);
+            task->compressed_output_ptr->clear();
         }
         { std::lock_guard<std::mutex> lock(*task->mtx); *task->ready = true; }
         task->cv->notify_one();
@@ -397,16 +377,12 @@ void dequantize_tile_to_matrix(const Tensor& t, size_t offset_bytes, size_t num_
     }
 }
 
-double calculate_entropy(const std::vector<uint8_t>& data) {
-    if (data.empty()) return 0.0;
-    std::map<uint8_t, size_t> counts;
-    for (uint8_t byte : data) counts[byte]++;
-    double entropy = 0.0;
-    for (auto const& [val, count] : counts) {
-        double p = static_cast<double>(count) / data.size();
-        entropy -= p * log2(p);
-    }
-    return entropy;
+double calculate_stdev(const std::vector<uint8_t>& data) {
+    if (data.size() < 2) return 0.0;
+    double sum = 0.0; for(uint8_t byte : data) sum += byte;
+    double mean = sum / data.size();
+    double sq_sum = 0.0; for(uint8_t byte : data) sq_sum += (byte - mean) * (byte - mean);
+    return std::sqrt(sq_sum / data.size());
 }
 
 #ifdef LZ5_USE_CUDA
@@ -426,27 +402,26 @@ namespace Cuda {
             b2.allocate(cpu_pred.conv2.b.size() * sizeof(float)); CUDA_CHECK(cudaMemcpy(b2.ptr, cpu_pred.conv2.b.data(), cpu_pred.conv2.b.size() * sizeof(float), cudaMemcpyHostToDevice));
         }
     };
-    __global__ void dequant_fp16_kernel(const half* __restrict__ in, float* __restrict__ out, size_t n) {
-        size_t i = blockIdx.x * blockDim.x + threadIdx.x; if (i >= n) return; out[i] = __half2float(in[i]);
-    }
+    
+    template<int HIDDEN_DIM>
     __global__ void prediction_and_residual_kernel(const float* x1, const float* x2, const float* y_actual, half* y_residual,
                                                    const float* W1, const float* b1, const float* W2, const float* b2,
-                                                   int n_elems, int hidden_dim, int in_dim) {
+                                                   int n_elems, int in_dim) {
         int i = blockIdx.x * blockDim.x + threadIdx.x; if (i >= n_elems) return;
-        float h[8]; // Fixed hidden dim for kernel simplicity
-        for(int j=0; j<hidden_dim; ++j){
+        float h[HIDDEN_DIM];
+        for(int j=0; j<HIDDEN_DIM; ++j){
             h[j] = x1[i] * W1[j*in_dim+0] + x2[i] * W1[j*in_dim+1] + b1[j];
             if(h[j] < 0) h[j] = 0.f;
         }
         float y_pred = b2[0];
-        for(int j=0; j<hidden_dim; ++j) y_pred += h[j] * W2[j];
+        for(int j=0; j<HIDDEN_DIM; ++j) y_pred += h[j] * W2[j];
         y_residual[i] = __float2half(y_actual[i] - y_pred);
     }
 }
 #endif
 
 void print_progress(float progress) {
-    int barWidth = 70;
+    int barWidth = 50;
     std::cout << "LZ5_PROGRESS::[";
     int pos = barWidth * progress;
     for (int i = 0; i < barWidth; ++i) {
@@ -459,10 +434,9 @@ void print_progress(float progress) {
 }
 
 int main(int argc, char** argv) {
-    Config cfg;
-    std::string inFile, outFile;
+    Config cfg; std::string inFile, outFile;
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " model.safetensors out.gguf [--epochs N] [--threads N] [--fast] [--lr F] [--tile-mb N]\n";
+        std::cerr << "Usage: " << argv[0] << " model.safetensors out.gguf [--epochs N] [--threads N] [--fast] [--lr F] [--tile-mb N] [--h-dim D]\n";
         return 1;
     }
     inFile = argv[1]; outFile = argv[2];
@@ -473,6 +447,7 @@ int main(int argc, char** argv) {
         else if (a == "--threads" && i+1<argc) cfg.threads = atoi(argv[++i]);
         else if (a == "--lr" && i+1<argc) cfg.learning_rate = atof(argv[++i]);
         else if (a == "--tile-mb" && i+1<argc) cfg.tile_size_mb = (size_t)atoll(argv[++i]);
+        else if (a == "--h-dim" && i+1<argc) cfg.hidden_dim = atoi(argv[++i]);
     }
 
 #ifdef LZ5_USE_CUDA
@@ -481,7 +456,7 @@ int main(int argc, char** argv) {
     if (err == cudaSuccess && deviceCount > 0) cfg.use_cuda = true;
 #endif
 
-    std::cout << "[INFO] LZ5 v2.3 Definitive Converter | Mode: " << (cfg.use_cuda ? "CUDA" : "CPU-Only") << " | Threads: " << cfg.threads << "\n";
+    std::cout << "[INFO] LZ5 v2.4 Definitive Converter | Mode: " << (cfg.use_cuda ? "CUDA" : "CPU-Only") << " | Threads: " << cfg.threads << "\n";
     
     std::vector<std::thread> thread_pool;
     for (int i = 0; i < cfg.threads; ++i) thread_pool.emplace_back(compression_worker);
@@ -514,7 +489,7 @@ int main(int argc, char** argv) {
         std::cout << "[2/4] Training predictors...\n";
         std::map<std::string, std::vector<const Tensor*>> training_groups;
         for (const auto& t : tensors) {
-            if (t.name.find("layers.") != std::string::pos && t.shape.size() >= 2) {
+            if (t.name.find("layers.") != std::string::npos && t.shape.size() >= 2) {
                 std::string base_name = std::regex_replace(t.name, std::regex(R"(\.layers\.\d+\.)"), ".layers.X.");
                 training_groups[base_name].push_back(&t);
             }
@@ -532,16 +507,17 @@ int main(int argc, char** argv) {
                 dequantize_tile_to_matrix(*pair.second[i+2], 0, pair.second[i+2]->orig_bytes, y);
                 batches.emplace_back(x1, x2, y);
             }
-            if (!batches.empty()) predictors.emplace(std::make_pair(pair.first, Predictor(cfg.learning_rate))).first->second.train(batches, cfg.epochs);
+            if (!batches.empty()) predictors.emplace(std::piecewise_construct, std::forward_as_tuple(pair.first), std::forward_as_tuple(cfg.learning_rate, cfg.hidden_dim)).first->second.train(batches, cfg.epochs);
         }
 
         std::cout << "[3/4] Initializing GGUF writer...\n";
         gguf_context* ctx = gguf_init_empty();
         gguf_set_val_str(ctx, "general.architecture", "llama");
-        gguf_set_val_str(ctx, "general.compression_standard", "LZ5 v2.3");
+        gguf_set_val_str(ctx, "general.compression_standard", "LZ5 v2.4");
         for (const auto& [name, pred] : predictors) {
             if (!pred.trained) continue;
             std::string prefix = "lz5.pred." + name;
+            gguf_set_val_u32(ctx, (prefix + ".hidden_dim").c_str(), pred.hidden_dim);
             gguf_add_tensor(ctx, (prefix + ".conv1.w").c_str(), {pred.conv1.W.rows(), pred.conv1.W.cols()}, 2, GGML_TYPE_F32, pred.conv1.W.data());
             gguf_add_tensor(ctx, (prefix + ".conv1.b").c_str(), {pred.conv1.b.size()}, 1, GGML_TYPE_F32, pred.conv1.b.data());
             gguf_add_tensor(ctx, (prefix + ".conv2.w").c_str(), {pred.conv2.W.rows(), pred.conv2.W.cols()}, 2, GGML_TYPE_F32, pred.conv2.W.data());
@@ -587,8 +563,8 @@ int main(int argc, char** argv) {
                     full_residual_bytes.insert(full_residual_bytes.end(), tile_residual_bytes.begin(), tile_residual_bytes.end());
                 }
 
-                double entropy = calculate_entropy(full_residual_bytes);
-                int zstd_level = (entropy < 4.0) ? 22 : ((entropy < 6.0) ? 15 : 5);
+                double stdev = calculate_stdev(full_residual_bytes);
+                int zstd_level = (stdev < 10.0) ? 22 : ((stdev < 30.0) ? 15 : 5);
 
                 std::mutex task_mtx; std::condition_variable task_cv; bool ready = false; std::atomic<bool> error_flag{false};
                 CompressionTask task{&full_residual_bytes, &t.compressed_residual, zstd_level, &error_flag, &task_cv, &task_mtx, &ready};
@@ -640,4 +616,111 @@ int main(int argc, char** argv) {
 '@
 #endregion
 
+$code | Out-File -FilePath $converterSrcFile -Encoding utf8
 
+Log "Build environment ready. Configuring with CMake..."
+$cmakeBuildDir = Join-Path $converterDir "build"
+$cmakeArgs = @(
+    "-S", """$converterDir""",
+    "-B", """$cmakeBuildDir""",
+    "-G", "Ninja",
+    "-D", "CMAKE_BUILD_TYPE=Release",
+    "-D", "CMAKE_INSTALL_PREFIX=""$binDir""",
+    "-D", "CMAKE_CURRENT_SOURCE_DIR=""$converterDir"""
+)
+New-Item -ItemType Directory -Path (Join-Path $converterDir "src") -Force | Out-Null
+Copy-Item -Path (Join-Path $srcDir "*") -Destination (Join-Path $converterDir "src") -Recurse
+if (-not $cudaPath) {
+    $cmakeArgs += "-D", "LZ5_USE_CUDA=OFF"
+}
+
+$batContent = @"
+@echo off
+call "$vcvarsBat"
+cmake $($cmakeArgs -join ' ')
+"@
+$runCmakeBat = Join-Path $toolsDir "run_cmake.bat"
+$batContent | Out-File -FilePath $runCmakeBat -Encoding ascii
+& $runCmakeBat
+if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
+
+Log "Building lz5_v2.4_converter.exe with CMake..."
+& cmake --build $cmakeBuildDir --config Release -- -j$([System.Environment]::ProcessorCount)
+if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+
+& cmake --install $cmakeBuildDir --config Release
+if ($LASTEXITCODE -ne 0) { throw 'Install failed.' }
+
+#region GUI_AND_JOB_MANAGEMENT
+$tbModel = New-Object System.Windows.Forms.TextBox
+$tbModel.Dock = 'Top'; $tbModel.Height = 25
+$form.Controls.Add($tbModel)
+$btnBrowse = New-Object System.Windows.Forms.Button
+$btnBrowse.Text = 'Browse…'; $btnBrowse.Dock = 'Top'; $btnBrowse.Height = 30
+$btnBrowse.Add_Click({
+    $d = New-Object System.Windows.Forms.OpenFileDialog
+    $d.Filter = 'SafeTensors|*.safetensors|All|*.*'
+    if ($d.ShowDialog() -eq 'OK') { $tbModel.Text = $d.FileName }
+})
+$form.Controls.Add($btnBrowse)
+$btnConvert = New-Object System.Windows.Forms.Button
+$btnConvert.Dock = 'Top'; $btnConvert.Text = 'Convert → "LZ5 v2.4" GGUF'; $btnConvert.Height = 40
+$btnConvert.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$form.Controls.Add($btnConvert)
+$btnCancel = New-Object System.Windows.Forms.Button
+$btnCancel.Dock = 'Top'; $btnCancel.Text = 'Cancel'; $btnCancel.Height = 30; $btnCancel.Enabled = $false
+$form.Controls.Add($btnCancel)
+$prg = New-Object System.Windows.Forms.ProgressBar
+$prg.Dock = 'Top'; $prg.Style = 'Continuous'
+$form.Controls.Add($prg)
+$global:job = $null
+$btnConvert.Add_Click({
+    $model = $tbModel.Text.Trim()
+    if (-not (Test-Path $model)) { Log 'Model file not found'; return }
+    $outName = [IO.Path]::GetFileNameWithoutExtension($model) + '_LZ5v2.4.gguf'
+    $outFile = Join-Path $outDir $outName
+    $prg.Value = 0; $btnConvert.Enabled = $false; $btnCancel.Enabled = $true
+    Log "Starting LZ5 v2.4 conversion → $outFile"
+    $global:job = Start-Job -FilePath $converterExe -ArgumentList @($model, $outFile)
+    $timer.Start()
+})
+$btnCancel.Add_Click({
+    if ($global:job) { Log 'Cancelling…'; $global:job | Stop-Job -Force; $global:job | Remove-Job -Force; $global:job = $null }
+    $timer.Stop(); $prg.Value = 0; $btnConvert.Enabled = true; $btnCancel.Enabled = $false
+})
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 100
+$timer.Add_Tick({
+    if (-not $global:job) { return }
+    if ($global:job.State -eq 'Running') {
+        $log = $global:job | Receive-Job
+        if ($log) {
+            foreach ($l in $log) {
+                if ($l -like "LZ5_PROGRESS::*") {
+                    $progressStr = $l.Split(' ')[-2]
+                    try { $progressVal = [int]$progressStr } catch { $progressVal = 0 }
+                    if ($progressVal -ge 0 -and $progressVal -le 100) { $prg.Value = $progressVal }
+                } else { Log $l }
+            }
+        }
+    } else {
+        $timer.Stop()
+        $log = $global:job | Receive-Job
+        if ($log) { foreach ($l in $log) { if(-not ($l -like "LZ5_PROGRESS::*")){ Log $l } } }
+        if ($global:job.State -eq 'Failed') { Log 'Conversion failed – see log above' } else {
+            $outFile = Join-Path $outDir ([IO.Path]::GetFileNameWithoutExtension($tbModel.Text) + '_LZ5v2.4.gguf')
+            if (Test-Path $outFile) {
+                Log "Success – output: $outFile"
+                Log "NOTE: This is a specialized GGUF. A custom LZ5-aware runtime is required for decompression."
+            }
+        }
+        $global:job | Remove-Job -Force; $global:job = $null
+        $btnConvert.Enabled = $true; $btnCancel.Enabled = $false
+        $prg.Value = 100
+    }
+})
+
+Log 'LZ5 v2.4 Converter ready. Select a .safetensors model and click Convert.'
+$form.Add_FormClosed({ if ($global:job) { $global:job | Stop-Job -Force; $global:job | Remove-Job -Force } })
+[void]$form.ShowDialog()
+#endregion
